@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>简洁扫码工具</title>
+    <title>极简扫码工具</title>
     <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -29,30 +29,26 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            padding: 20px;
         }
 
-        /* 扫描框容器 */
-        .scanner-window {
-            flex: 1;
-            background: var(--background);
-            border-radius: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        /* 上半部分：扫描框 */
+        .scanner-section {
+            height: 60vh;
             position: relative;
-            overflow: hidden;
+            background: var(--background);
         }
 
-        /* 实际扫描区域 */
         .scan-area {
             width: 280px;
             height: 280px;
             position: absolute;
-            top: 50%;
+            top: 40%;
             left: 50%;
             transform: translate(-50%, -50%);
             border: 2px solid var(--primary);
             border-radius: 24px;
             overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,122,255,0.15);
         }
 
         #preview {
@@ -61,84 +57,69 @@
             object-fit: cover;
         }
 
-        /* 操作区域 */
-        .control-bar {
-            padding: 20px 0;
+        /* 下半部分：操作区 */
+        .action-section {
+            flex: 1;
             display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            gap: 20px;
+            gap: 24px;
+            padding: 0 20px 40px;
         }
 
-        .control-button {
-            width: 60px;
-            height: 60px;
-            border-radius: 30px;
+        .action-button {
+            width: 100%;
+            max-width: 320px;
+            padding: 18px;
             background: var(--primary);
             border: none;
+            border-radius: 14px;
             color: white;
-            font-size: 24px;
+            font-size: 17px;
+            font-weight: 500;
             box-shadow: 0 4px 12px rgba(0,122,255,0.3);
         }
 
-        /* 结果通知 */
-        .scan-notice {
+        /* 历史记录面板 */
+        .history-panel {
             position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,122,255,0.9);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 24px;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-        }
-
-        /* 结果列表面板 */
-        .result-panel {
-            position: fixed;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            max-width: 400px;
+            bottom: -100%;
+            left: 0;
+            right: 0;
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-            max-height: 50vh;
+            border-radius: 24px 24px 0 0;
+            padding: 24px;
+            box-shadow: 0 -8px 24px rgba(0,0,0,0.1);
+            transition: bottom 0.3s;
+            max-height: 70vh;
             overflow-y: auto;
-            display: none;
         }
 
-        .result-item {
-            padding: 16px;
+        .history-item {
+            padding: 12px;
             border-bottom: 1px solid #F2F2F7;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- 扫描窗口 -->
-        <div class="scanner-window">
+        <!-- 扫描区域 -->
+        <div class="scanner-section">
             <div class="scan-area">
                 <video id="preview" playsinline muted></video>
             </div>
         </div>
 
         <!-- 操作按钮 -->
-        <div class="control-bar">
-            <button class="control-button" id="toggleCamera">🔄</button>
-            <button class="control-button" id="resultToggle">📋</button>
+        <div class="action-section">
+            <button class="action-button" id="exportBtn">导出扫描结果</button>
+            <button class="action-button" id="historyBtn">查看扫描历史</button>
         </div>
 
-        <!-- 扫描结果提示 -->
-        <div class="scan-notice" id="scanNotice"></div>
-
-        <!-- 结果列表 -->
-        <div class="result-panel" id="resultPanel">
-            <div id="resultList"></div>
+        <!-- 历史记录 -->
+        <div class="history-panel" id="historyPanel">
+            <div id="historyList"></div>
         </div>
     </div>
 
@@ -146,15 +127,13 @@
         let state = {
             isScanning: true,
             scanHistory: [],
-            currentCamera: 'environment',
             mediaStream: null
         };
 
         const elements = {
             preview: document.getElementById('preview'),
-            scanNotice: document.getElementById('scanNotice'),
-            resultPanel: document.getElementById('resultPanel'),
-            resultList: document.getElementById('resultList')
+            historyPanel: document.getElementById('historyPanel'),
+            historyList: document.getElementById('historyList')
         };
 
         // 初始化摄像头
@@ -162,7 +141,7 @@
             try {
                 state.mediaStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: state.currentCamera,
+                        facingMode: 'environment',
                         width: { ideal: 800 },
                         height: { ideal: 600 }
                     }
@@ -171,7 +150,7 @@
                 await elements.preview.play();
                 scanFrame();
             } catch (error) {
-                showNotice('需要摄像头权限');
+                alert('需要摄像头权限');
             }
         }
 
@@ -207,24 +186,16 @@
 
             state.scanHistory.unshift({
                 data: data,
-                time: new Date().toLocaleTimeString()
+                time: new Date().toLocaleString()
             });
 
-            showNotice(`已扫描: ${data.substring(0, 20)}${data.length > 20 ? '...' : ''}`);
-            updateResultList();
+            updateHistoryList();
         }
 
-        // 显示顶部通知
-        function showNotice(text) {
-            elements.scanNotice.textContent = text;
-            elements.scanNotice.style.opacity = 1;
-            setTimeout(() => elements.scanNotice.style.opacity = 0, 2000);
-        }
-
-        // 更新结果列表
-        function updateResultList() {
-            elements.resultList.innerHTML = state.scanHistory.map(item => `
-                <div class="result-item">
+        // 更新历史记录
+        function updateHistoryList() {
+            elements.historyList.innerHTML = state.scanHistory.map(item => `
+                <div class="history-item">
                     <div>${item.data}</div>
                     <small>${item.time}</small>
                 </div>
@@ -232,14 +203,28 @@
         }
 
         // 事件绑定
-        document.getElementById('toggleCamera').addEventListener('click', async () => {
-            state.currentCamera = state.currentCamera === 'user' ? 'environment' : 'user';
-            state.mediaStream.getTracks().forEach(track => track.stop());
-            await initScanner();
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (state.scanHistory.length === 0) return alert('没有可导出的记录');
+            
+            const csvContent = '时间,内容\n' + 
+                state.scanHistory.map(item => `"${item.time}","${item.data}"`).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `扫描结果_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
         });
 
-        document.getElementById('resultToggle').addEventListener('click', () => {
-            elements.resultPanel.style.display = elements.resultPanel.style.display === 'none' ? 'block' : 'none';
+        document.getElementById('historyBtn').addEventListener('click', () => {
+            elements.historyPanel.style.bottom = '0';
+        });
+
+        elements.historyPanel.addEventListener('click', (e) => {
+            if (e.target.closest('.history-item')) return;
+            elements.historyPanel.style.bottom = '-100%';
         });
 
         // 启动扫描
