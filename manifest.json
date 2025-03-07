@@ -1,250 +1,47 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>简洁扫码工具</title>
-    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #007AFF;
-            --background: #FFFFFF;
+{
+    "name": "全屏扫码工具",
+    "short_name": "智能扫码",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#000000",
+    "theme_color": "#007AFF",
+    "description": "专业二维码扫描工具，支持批量扫描和导出",
+    "icons": [
+        {
+            "src": "icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
         }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'SF Pro Display', -apple-system, sans-serif;
-            -webkit-tap-highlight-color: transparent;
+    ],
+    "screenshots": [
+        {
+            "src": "screenshots/ios-1.png",
+            "sizes": "1170x2532",
+            "type": "image/png",
+            "platform": "narrow",
+            "label": "主扫描界面"
         }
-
-        html, body {
-            height: 100%;
-            overflow: hidden;
-            background: var(--background);
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            padding: 20px;
-        }
-
-        /* 扫描框容器 */
-        .scanner-window {
-            flex: 1;
-            background: var(--background);
-            border-radius: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* 实际扫描区域 */
-        .scan-area {
-            width: 280px;
-            height: 280px;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            border: 2px solid var(--primary);
-            border-radius: 24px;
-            overflow: hidden;
-        }
-
-        #preview {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        /* 操作区域 */
-        .control-bar {
-            padding: 20px 0;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-        }
-
-        .control-button {
-            width: 60px;
-            height: 60px;
-            border-radius: 30px;
-            background: var(--primary);
-            border: none;
-            color: white;
-            font-size: 24px;
-            box-shadow: 0 4px 12px rgba(0,122,255,0.3);
-        }
-
-        /* 结果通知 */
-        .scan-notice {
-            position: fixed;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,122,255,0.9);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 24px;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-        }
-
-        /* 结果列表面板 */
-        .result-panel {
-            position: fixed;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            max-width: 400px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-            max-height: 50vh;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .result-item {
-            padding: 16px;
-            border-bottom: 1px solid #F2F2F7;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- 扫描窗口 -->
-        <div class="scanner-window">
-            <div class="scan-area">
-                <video id="preview" playsinline muted></video>
-            </div>
-        </div>
-
-        <!-- 操作按钮 -->
-        <div class="control-bar">
-            <button class="control-button" id="toggleCamera">🔄</button>
-            <button class="control-button" id="resultToggle">📋</button>
-        </div>
-
-        <!-- 扫描结果提示 -->
-        <div class="scan-notice" id="scanNotice"></div>
-
-        <!-- 结果列表 -->
-        <div class="result-panel" id="resultPanel">
-            <div id="resultList"></div>
-        </div>
-    </div>
-
-    <script>
-        let state = {
-            isScanning: true,
-            scanHistory: [],
-            currentCamera: 'environment',
-            mediaStream: null
-        };
-
-        const elements = {
-            preview: document.getElementById('preview'),
-            scanNotice: document.getElementById('scanNotice'),
-            resultPanel: document.getElementById('resultPanel'),
-            resultList: document.getElementById('resultList')
-        };
-
-        // 初始化摄像头
-        async function initScanner() {
-            try {
-                state.mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: state.currentCamera,
-                        width: { ideal: 800 },
-                        height: { ideal: 600 }
-                    }
-                });
-                elements.preview.srcObject = state.mediaStream;
-                await elements.preview.play();
-                scanFrame();
-            } catch (error) {
-                showNotice('需要摄像头权限');
-            }
-        }
-
-        // 扫描处理
-        function scanFrame() {
-            if (!state.isScanning) return;
-
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = elements.preview.videoWidth;
-            canvas.height = elements.preview.videoHeight;
-            
-            ctx.drawImage(elements.preview, 0, 0);
-            
-            // 只识别扫描区域内容
-            const scanRect = {
-                x: (canvas.width - 280) / 2,
-                y: (canvas.height - 280) / 2,
-                width: 280,
-                height: 280
-            };
-            
-            const imageData = ctx.getImageData(scanRect.x, scanRect.y, scanRect.width, scanRect.height);
-            const code = jsQR(imageData.data, scanRect.width, scanRect.height);
-
-            if (code) handleScan(code.data);
-            requestAnimationFrame(scanFrame);
-        }
-
-        // 处理扫描结果
-        function handleScan(data) {
-            if (state.scanHistory.some(item => item.data === data)) return;
-
-            state.scanHistory.unshift({
-                data: data,
-                time: new Date().toLocaleTimeString()
-            });
-
-            showNotice(`已扫描: ${data.substring(0, 20)}${data.length > 20 ? '...' : ''}`);
-            updateResultList();
-        }
-
-        // 显示顶部通知
-        function showNotice(text) {
-            elements.scanNotice.textContent = text;
-            elements.scanNotice.style.opacity = 1;
-            setTimeout(() => elements.scanNotice.style.opacity = 0, 2000);
-        }
-
-        // 更新结果列表
-        function updateResultList() {
-            elements.resultList.innerHTML = state.scanHistory.map(item => `
-                <div class="result-item">
-                    <div>${item.data}</div>
-                    <small>${item.time}</small>
-                </div>
-            `).join('');
-        }
-
-        // 事件绑定
-        document.getElementById('toggleCamera').addEventListener('click', async () => {
-            state.currentCamera = state.currentCamera === 'user' ? 'environment' : 'user';
-            state.mediaStream.getTracks().forEach(track => track.stop());
-            await initScanner();
-        });
-
-        document.getElementById('resultToggle').addEventListener('click', () => {
-            elements.resultPanel.style.display = elements.resultPanel.style.display === 'none' ? 'block' : 'none';
-        });
-
-        // 启动扫描
-        initScanner();
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-</body>
-</html>
+    ],
+    "ios": {
+        "precomposed": true,
+        "apple-mobile-web-app-title": "智能扫码",
+        "apple-mobile-web-app-capable": "yes",
+        "apple-mobile-web-app-status-bar-style": "black-translucent"
+    },
+    "related_applications": [],
+    "features": [
+        "QR Code Scanning",
+        "Batch Export",
+        "Camera Access"
+    ],
+    "categories": ["utilities", "productivity"]
+}
