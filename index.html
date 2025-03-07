@@ -217,7 +217,8 @@
             isScanning: true,
             scanHistory: [],
             mediaStream: null,
-            audioContext: null
+            audioContext: null,
+            coolDownEnd: 0
         };
 
         const elements = {
@@ -299,10 +300,13 @@
         }
 
         function handleScan(data) {
+            const now = Date.now();
             const isDuplicate = state.scanHistory.some(item => item.data === data);
             
             if (isDuplicate) {
-                showToast(elements.duplicateToast);
+                if (now > state.coolDownEnd) {
+                    showToast(elements.duplicateToast);
+                }
                 return;
             }
 
@@ -313,6 +317,7 @@
 
             playBeep();
             showToast(elements.scanToast);
+            state.coolDownEnd = now + 1500;
             updateHistoryList();
         }
 
@@ -367,7 +372,7 @@
             }
         });
 
-        // 用户交互后初始化音频
+        // 用户交互初始化音频
         document.querySelectorAll('button').forEach(btn => {
             btn.addEventListener('click', initAudio);
         });
