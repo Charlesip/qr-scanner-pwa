@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>批量扫码工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+</head>
+<body>
+    <button onclick="startScan()">开始扫描</button>
+    <button onclick="exportData()">导出结果</button>
+    <div id="results"></div>
+    <video id="preview" width="300" height="200"></video>
+
+    <script>
+        let scanHistory = []; // 存储扫描结果
+        let mediaStream = null; // 摄像头流
+
+        // 初始化音频（需用户交互后播放）
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let beepSound = null;
+        fetch('https://actions.google.com/sounds/v1/alerts/beep_short.ogg')
+            .then(response => response.arrayBuffer())
+            .then(data => audioContext.decodeAudioData(data))
+            .then(buffer => { beepSound = buffer; });
+
+        // 开始扫描
+        async function startScan() {
+            try {
+                const video = document.getElementById('preview');
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = mediaStream;
+                video.play();
+                scanFrame(video);
+            } catch (err) {
+                alert('摄像头权限被拒绝！');
+            }
+        }
+
+        // 逐帧解析
+        function scanFrame(video) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+            if (code) {
+                playBeep(); // 播放提示音
+                scanHistory.push({ data: code.data, time: new Date().toLocaleString() });
+                document.getElementById('results').innerHTML = scanHistory.map(item => 
+                    `<div>${item.time}: ${item.data}</div>`
+                ).join('');
+            }
+            requestAnimationFrame(() => scanFrame(video));
+        }
+
+        // 播放声音
+        function playBeep() {
+            if (!beepSound) return;
+            const source = audioContext.createBufferSource();
+            source.buffer = beepSound;
+            source.connect(audioContext.destination);
+            source.start(0);
+        }
+
+        // 导出为CSV
+        function exportData() {
+            const csvContent = '时间,内容\n' + scanHistory.map(item => 
+                `${item.time},${item.data}`
+            ).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '扫描结果.csv';
+            a.click();
+        }
+
+        // 停止摄像头
+        window.addEventListener('beforeunload', () => {
+            if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+        });
+    </script>
+</body>
+</html>
