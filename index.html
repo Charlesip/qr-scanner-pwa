@@ -56,10 +56,26 @@
             background: #000;
         }
 
+        .scanner-viewport::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 70vw;
+            height: 70vw;
+            max-width: 400px;
+            max-height: 400px;
+            transform: translate(-50%, -50%);
+            border-radius: 24px;
+            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.8);
+            z-index: 1;
+        }
+
         #preview {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transform: scale(1.1);
         }
 
         /* 扫描框 */
@@ -74,7 +90,7 @@
             transform: translate(-50%, -50%);
             border: 2px solid rgba(255,255,255,0.8);
             border-radius: 24px;
-            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5);
+            z-index: 2;
         }
 
         .scan-laser {
@@ -128,6 +144,7 @@
             transition: transform 0.3s;
             max-height: 70vh;
             overflow-y: auto;
+            z-index: 3;
         }
 
         .result-panel.active {
@@ -141,7 +158,19 @@
             margin-bottom: 12px;
         }
 
-        /* 工具提示 */
+        /* 提示信息 */
+        .scan-notice {
+            position: absolute;
+            bottom: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 14px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+
         .toast {
             position: fixed;
             bottom: 100px;
@@ -153,6 +182,7 @@
             border-radius: 24px;
             opacity: 0;
             transition: opacity 0.3s;
+            z-index: 4;
         }
     </style>
 </head>
@@ -167,6 +197,7 @@
         <div class="scan-frame">
             <div class="scan-laser"></div>
         </div>
+        <div class="scan-notice">将二维码放入框内自动扫描</div>
     </main>
 
     <footer class="control-bar">
@@ -192,8 +223,13 @@
             scanHistory: [],
             currentCamera: 'environment',
             isFlashOn: false,
-            mediaStream: null
+            mediaStream: null,
+            lastScanTime: 0
         };
+
+        // 音频管理
+        let audioContext = null;
+        let beepBuffer = null;
 
         // DOM 元素
         const elements = {
@@ -214,7 +250,8 @@
         elements.toggleFlash.addEventListener('click', toggleFlash);
         elements.toggleCamera.addEventListener('click', toggleCamera);
 
-        // 初始化扫描
+        // 初始化
+        initAudio();
         initScanner();
 
         async function initScanner() {
@@ -228,8 +265,8 @@
                 });
                 elements.preview.srcObject = state.mediaStream;
                 await elements.preview.play();
-                scanFrame();
                 state.isScanning = true;
+                scanFrame();
             } catch (err) {
                 showToast('无法访问摄像头');
             }
@@ -251,23 +288,70 @@
                 inversionAttempts: 'dontInvert'
             });
 
-            if (code) {
-                handleScanSuccess(code.data);
-            }
+            if (code) handleScanSuccess(code.data);
             requestAnimationFrame(scanFrame);
         }
 
         function handleScanSuccess(data) {
-            if (state.scanHistory.some(item => item.data === data)) return;
+            const now = Date.now();
+            
+            // 防抖处理（1秒内不重复）
+            if (now - state.lastScanTime < 1000) return;
+            state.lastScanTime = now;
 
+            // 重复检测
+            const isDuplicate = state.scanHistory.some(item => item.data === data);
+            if (isDuplicate) {
+                showToast('该二维码已扫描过 ⚠️', 1500);
+                return;
+            }
+
+            // 添加记录
             state.scanHistory.unshift({
                 data: data,
-                time: new Date().toLocaleTimeString()
+                time: new Date().toLocaleTimeString(),
+                timestamp: now
             });
 
-            updateResultList();
-            showToast(`已扫描: ${data.substring(0, 20)}...`);
+            playBeep();
             vibrate();
+            updateResultList();
+            showToast(`已扫描: ${data.substring(0, 20)}${data.length > 20 ? '...' : ''}`);
+        }
+
+        async function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const duration = 0.2;
+                const sampleRate = audioContext.sampleRate;
+                const frameCount = duration * sampleRate;
+                const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                for (let i = 0; i < frameCount; i++) {
+                    data[i] = Math.sin(2 * Math.PI * 1000 * i / sampleRate);
+                }
+                beepBuffer = buffer;
+            } catch (err) {
+                console.error('音频初始化失败:', err);
+            }
+        }
+
+        function playBeep() {
+            if (!beepBuffer) return;
+            
+            const source = audioContext.createBufferSource();
+            source.buffer = beepBuffer;
+            source.connect(audioContext.destination);
+            source.start(0);
+            
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        function vibrate() {
+            navigator.vibrate?.(50);
         }
 
         function updateResultList() {
@@ -280,18 +364,12 @@
             elements.resultCount.textContent = state.scanHistory.length;
         }
 
-        // 辅助功能
         function showToast(text, duration = 2000) {
             elements.toast.textContent = text;
             elements.toast.style.opacity = 1;
             setTimeout(() => elements.toast.style.opacity = 0, duration);
         }
 
-        function vibrate() {
-            navigator.vibrate?.(50);
-        }
-
-        // 控制功能
         function toggleResultPanel() {
             elements.resultPanel.classList.toggle('active');
         }
@@ -333,7 +411,6 @@
             showToast('导出成功');
         }
 
-        // 清理资源
         window.addEventListener('beforeunload', () => {
             state.mediaStream?.getTracks().forEach(track => track.stop());
         });
