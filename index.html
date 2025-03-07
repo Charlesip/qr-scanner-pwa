@@ -6,91 +6,6 @@
     <title>专业扫码工具</title>
     <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        /* 新增提示样式 */
-        .scan-toast.error {
-            background: rgba(255,59,48,0.95); /* iOS红色 */
-            box-shadow: 0 4px 12px rgba(255,59,48,0.3);
-        }
-    </style>
-</head>
-<body>
-    <!-- 新增重复扫描提示 -->
-    <div class="scan-toast" id="duplicateToast">⚠️ 重复扫描</div>
-
-    <script>
-        // 音频管理
-        let audioContext = null;
-        let oscillator = null;
-
-        // 初始化音频
-        function initAudio() {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-
-        // 播放提示音
-        function playBeep() {
-            if (!audioContext) return;
-            
-            oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.1);
-
-            // iOS恢复静音状态
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
-        }
-
-        // 修改扫描处理逻辑
-        function handleScan(data) {
-            const isDuplicate = state.scanHistory.some(item => item.data === data);
-            
-            if (isDuplicate) {
-                showToast(elements.duplicateToast);
-                return;
-            }
-
-            state.scanHistory.unshift({
-                data: data,
-                time: new Date().toLocaleString()
-            });
-
-            playBeep();
-            showToast(elements.scanToast);
-            updateHistoryList();
-        }
-
-        // 通用提示显示
-        function showToast(toastElement) {
-            clearTimeout(toastElement.timeout);
-            toastElement.classList.remove('visible');
-            
-            void toastElement.offsetWidth; // 强制重绘
-            toastElement.classList.add('visible');
-            
-            toastElement.timeout = setTimeout(() => {
-                toastElement.classList.remove('visible');
-            }, 1500);
-        }
-    </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>专业扫码工具</title>
-    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
-    <style>
         :root {
             --primary: #007AFF;
             --error: #FF3B30;
@@ -99,7 +14,143 @@
             --surface: #F2F2F7;
         }
 
-        /* 提示样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'SF Pro Display', -apple-system, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background: var(--background);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* 扫描区域 */
+        .scanner-section {
+            height: 60vh;
+            position: relative;
+            background: var(--background);
+        }
+
+        .scan-area {
+            width: 280px;
+            height: 280px;
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid var(--primary);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,122,255,0.15);
+        }
+
+        #preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* 操作区域 */
+        .action-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 0 20px 40px;
+        }
+
+        .action-button {
+            width: 100%;
+            max-width: 320px;
+            padding: 18px;
+            background: var(--primary);
+            border: none;
+            border-radius: 14px;
+            color: white;
+            font-size: 17px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+            transition: opacity 0.2s;
+        }
+
+        .action-button:active {
+            opacity: 0.7;
+        }
+
+        /* 模态面板 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--overlay);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--background);
+            width: 90%;
+            max-width: 400px;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+            max-height: 70vh;
+            overflow-y: auto;
+            animation: modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        @keyframes modalIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 历史记录 */
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--surface);
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--primary);
+            padding: 8px;
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+        }
+
+        .history-item {
+            padding: 14px;
+            border-radius: 10px;
+            margin: 8px 0;
+            background: var(--surface);
+            transition: background 0.2s;
+        }
+
+        /* 提示系统 */
         .scan-toast {
             position: fixed;
             top: 15%;
@@ -135,22 +186,118 @@
     </style>
 </head>
 <body>
-    <!-- 原有结构保持不变，新增以下提示 -->
-    <div class="scan-toast success" id="scanToast">✓ 扫描成功</div>
-    <div class="scan-toast error" id="duplicateToast">⚠️ 重复扫描</div>
+    <div class="container">
+        <div class="scanner-section">
+            <div class="scan-area">
+                <video id="preview" playsinline muted></video>
+            </div>
+        </div>
+
+        <div class="action-section">
+            <button class="action-button" id="exportBtn">导出扫描结果</button>
+            <button class="action-button" id="historyBtn">查看扫描历史</button>
+        </div>
+
+        <div class="scan-toast success" id="scanToast">✓ 扫描成功</div>
+        <div class="scan-toast error" id="duplicateToast">⚠️ 重复扫描</div>
+
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal-content">
+                <div class="history-header">
+                    <h3 style="margin: 0">扫描历史</h3>
+                    <button class="close-button" id="closePanel">✕</button>
+                </div>
+                <div id="historyList"></div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // 新增音频相关代码
-        let audioContext = null;
+        let state = {
+            isScanning: true,
+            scanHistory: [],
+            mediaStream: null,
+            audioContext: null
+        };
 
-        // 初始化音频（在用户首次交互时调用）
+        const elements = {
+            preview: document.getElementById('preview'),
+            scanToast: document.getElementById('scanToast'),
+            duplicateToast: document.getElementById('duplicateToast'),
+            modalOverlay: document.getElementById('modalOverlay'),
+            historyList: document.getElementById('historyList')
+        };
+
+        // 初始化音频系统
         function initAudio() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (!state.audioContext) {
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
         }
 
-        // 修改后的扫描处理
+        // 播放提示音
+        function playBeep() {
+            if (!state.audioContext) return;
+
+            const oscillator = state.audioContext.createOscillator();
+            const gainNode = state.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(state.audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(1000, state.audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.3, state.audioContext.currentTime);
+            
+            oscillator.start();
+            oscillator.stop(state.audioContext.currentTime + 0.1);
+
+            if (state.audioContext.state === 'suspended') {
+                state.audioContext.resume();
+            }
+        }
+
+        // 扫描处理
+        async function initScanner() {
+            try {
+                state.mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 800 },
+                        height: { ideal: 600 }
+                    }
+                });
+                elements.preview.srcObject = state.mediaStream;
+                await elements.preview.play();
+                scanFrame();
+            } catch (error) {
+                alert('需要摄像头权限');
+            }
+        }
+
+        function scanFrame() {
+            if (!state.isScanning) return;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = elements.preview.videoWidth;
+            canvas.height = elements.preview.videoHeight;
+            
+            ctx.drawImage(elements.preview, 0, 0);
+            
+            const scanRect = {
+                x: (canvas.width - 280) / 2,
+                y: (canvas.height - 280) / 2,
+                width: 280,
+                height: 280
+            };
+            
+            const imageData = ctx.getImageData(scanRect.x, scanRect.y, scanRect.width, scanRect.height);
+            const code = jsQR(imageData.data, scanRect.width, scanRect.height);
+
+            if (code) handleScan(code.data);
+            requestAnimationFrame(scanFrame);
+        }
+
         function handleScan(data) {
             const isDuplicate = state.scanHistory.some(item => item.data === data);
             
@@ -159,7 +306,6 @@
                 return;
             }
 
-            // 成功扫描处理
             state.scanHistory.unshift({
                 data: data,
                 time: new Date().toLocaleString()
@@ -170,34 +316,65 @@
             updateHistoryList();
         }
 
-        // 播放提示音
-        function playBeep() {
-            if (!audioContext) return;
+        function showToast(toastElement) {
+            clearTimeout(toastElement.timeout);
+            toastElement.classList.remove('visible');
             
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
+            void toastElement.offsetWidth;
+            toastElement.classList.add('visible');
             
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.1);
-
-            // iOS音频恢复
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
+            toastElement.timeout = setTimeout(() => {
+                toastElement.classList.remove('visible');
+            }, 1500);
         }
 
-        // 在按钮点击时初始化音频
-        document.querySelectorAll('button').forEach(btn => {
-            btn.addEventListener('click', () => {
-                initAudio();
-            });
+        function updateHistoryList() {
+            elements.historyList.innerHTML = state.scanHistory.map(item => `
+                <div class="history-item">
+                    <div>${item.data}</div>
+                    <small>${item.time}</small>
+                </div>
+            `).join('');
+        }
+
+        // 事件绑定
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (state.scanHistory.length === 0) return alert('没有可导出的记录');
+            
+            const csvContent = '时间,内容\n' + 
+                state.scanHistory.map(item => `"${item.time}","${item.data}"`).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `扫描结果_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
         });
+
+        document.getElementById('historyBtn').addEventListener('click', () => {
+            elements.modalOverlay.style.display = 'flex';
+        });
+
+        document.getElementById('closePanel').addEventListener('click', () => {
+            elements.modalOverlay.style.display = 'none';
+        });
+
+        elements.modalOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.modalOverlay) {
+                elements.modalOverlay.style.display = 'none';
+            }
+        });
+
+        // 用户交互后初始化音频
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', initAudio);
+        });
+
+        // 启动扫描
+        initScanner();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </body>
 </html>
