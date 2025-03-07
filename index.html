@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>智能扫码工具</title>
+    <title>全屏扫码工具</title>
     <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #007AFF;
-            --success: #34C759;
-            --background: #FFFFFF;
-            --surface: #F2F2F7;
-            --text-primary: #1C1C1E;
+            --surface: #000000;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
         }
 
         * {
@@ -22,75 +21,48 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+        }
+
         body {
             background: var(--surface);
-            min-height: 100vh;
             display: flex;
             flex-direction: column;
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
         }
 
-        /* 头部操作栏 */
-        .action-bar {
-            padding: 16px;
-            background: var(--background);
-            display: flex;
-            gap: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .icon-button {
-            width: 40px;
-            height: 40px;
-            border-radius: 20px;
-            background: var(--surface);
-            display: grid;
-            place-items: center;
-            border: none;
-        }
-
-        /* 摄像头区域 */
-        .scanner-viewport {
+        /* 全屏摄像头容器 */
+        .scanner-container {
             flex: 1;
             position: relative;
+            height: calc(100vh - var(--safe-top) - var(--safe-bottom));
             overflow: hidden;
-            background: #000;
-        }
-
-        .scanner-viewport::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 70vw;
-            height: 70vw;
-            max-width: 400px;
-            max-height: 400px;
-            transform: translate(-50%, -50%);
-            border-radius: 24px;
-            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.8);
-            z-index: 1;
         }
 
         #preview {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scale(1.1);
+            transform: scale(1.05);
         }
 
         /* 扫描框 */
-        .scan-frame {
+        .scan-overlay {
             position: absolute;
-            width: 70vw;
-            height: 70vw;
-            max-width: 400px;
-            max-height: 400px;
             top: 50%;
             left: 50%;
+            width: 75vw;
+            height: 75vw;
+            max-width: 400px;
+            max-height: 400px;
             transform: translate(-50%, -50%);
             border: 2px solid rgba(255,255,255,0.8);
             border-radius: 24px;
-            z-index: 2;
+            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.8);
         }
 
         .scan-laser {
@@ -106,152 +78,88 @@
             100% { top: 100% }
         }
 
-        /* 底部操作栏 */
+        /* 底部控制栏 */
         .control-bar {
-            padding: 24px;
-            background: var(--background);
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+            position: fixed;
+            bottom: calc(var(--safe-bottom) + 20px);
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
         }
 
-        .primary-button {
-            padding: 18px;
+        .control-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 30px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
             border: none;
-            border-radius: 14px;
-            background: var(--primary);
             color: white;
-            font-size: 17px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+            font-size: 24px;
         }
 
         /* 结果面板 */
         .result-panel {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--background);
-            border-radius: 24px 24px 0 0;
-            padding: 24px;
-            box-shadow: 0 -8px 24px rgba(0,0,0,0.1);
-            transform: translateY(100%);
-            transition: transform 0.3s;
-            max-height: 70vh;
+            bottom: calc(var(--safe-bottom) + 100px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80vw;
+            max-width: 400px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 16px;
+            color: white;
+            max-height: 50vh;
             overflow-y: auto;
-            z-index: 3;
-        }
-
-        .result-panel.active {
-            transform: translateY(0);
+            display: none;
         }
 
         .result-item {
-            padding: 16px;
-            background: var(--surface);
-            border-radius: 12px;
-            margin-bottom: 12px;
-        }
-
-        /* 提示信息 */
-        .scan-notice {
-            position: absolute;
-            bottom: 20%;
-            left: 50%;
-            transform: translateX(-50%);
-            color: white;
-            text-align: center;
-            font-size: 14px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            z-index: 2;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 24px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 4;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
 <body>
-    <header class="action-bar">
-        <button class="icon-button" id="toggleFlash">⚡</button>
-        <button class="icon-button" id="toggleCamera">🔄</button>
-    </header>
-
-    <main class="scanner-viewport">
+    <div class="scanner-container">
         <video id="preview" playsinline muted></video>
-        <div class="scan-frame">
+        <div class="scan-overlay">
             <div class="scan-laser"></div>
         </div>
-        <div class="scan-notice">将二维码放入框内自动扫描</div>
-    </main>
+    </div>
 
-    <footer class="control-bar">
-        <button class="primary-button" id="resultToggle">📁 扫描记录</button>
-        <button class="primary-button" id="exportBtn">📤 导出结果</button>
-    </footer>
+    <div class="control-bar">
+        <button class="control-button" id="toggleCamera">🔄</button>
+        <button class="control-button" id="scanToggle">▶️</button>
+        <button class="control-button" id="showResults">📋</button>
+    </div>
 
     <div class="result-panel" id="resultPanel">
-        <div class="result-header">
-            <h3>扫描结果（<span id="resultCount">0</span>）</h3>
-            <button class="icon-button" id="closePanel">✕</button>
-        </div>
         <div id="resultList"></div>
     </div>
 
-    <div class="toast" id="toast"></div>
-
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script>
         // 状态管理
         let state = {
             isScanning: false,
             scanHistory: [],
             currentCamera: 'environment',
-            isFlashOn: false,
             mediaStream: null,
-            lastScanTime: 0
+            lastScan: 0
         };
 
-        // 音频管理
-        let audioContext = null;
-        let beepBuffer = null;
-
-        // DOM 元素
+        // DOM元素
         const elements = {
             preview: document.getElementById('preview'),
-            resultToggle: document.getElementById('resultToggle'),
+            scanToggle: document.getElementById('scanToggle'),
             resultPanel: document.getElementById('resultPanel'),
-            resultList: document.getElementById('resultList'),
-            resultCount: document.getElementById('resultCount'),
-            toast: document.getElementById('toast'),
-            toggleFlash: document.getElementById('toggleFlash'),
-            toggleCamera: document.getElementById('toggleCamera')
+            resultList: document.getElementById('resultList')
         };
 
-        // 事件绑定
-        elements.resultToggle.addEventListener('click', toggleResultPanel);
-        document.getElementById('exportBtn').addEventListener('click', exportData);
-        document.getElementById('closePanel').addEventListener('click', toggleResultPanel);
-        elements.toggleFlash.addEventListener('click', toggleFlash);
-        elements.toggleCamera.addEventListener('click', toggleCamera);
-
         // 初始化
-        initAudio();
         initScanner();
 
         async function initScanner() {
@@ -265,93 +173,71 @@
                 });
                 elements.preview.srcObject = state.mediaStream;
                 await elements.preview.play();
-                state.isScanning = true;
-                scanFrame();
+                startScanning();
             } catch (err) {
-                showToast('无法访问摄像头');
+                alert('需要摄像头权限');
             }
+        }
+
+        function startScanning() {
+            state.isScanning = true;
+            elements.scanToggle.textContent = '⏸️';
+            scanFrame();
+        }
+
+        function stopScanning() {
+            state.isScanning = false;
+            elements.scanToggle.textContent = '▶️';
         }
 
         function scanFrame() {
             if (!state.isScanning) return;
 
             const canvas = document.createElement('canvas');
-            const video = elements.preview;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0);
+            canvas.width = elements.preview.videoWidth;
+            canvas.height = elements.preview.videoHeight;
             
+            ctx.drawImage(elements.preview, 0, 0);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert'
-            });
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-            if (code) handleScanSuccess(code.data);
+            if (code) handleScan(code.data);
             requestAnimationFrame(scanFrame);
         }
 
-        function handleScanSuccess(data) {
+        function handleScan(data) {
             const now = Date.now();
             
-            // 防抖处理（1秒内不重复）
-            if (now - state.lastScanTime < 1000) return;
-            state.lastScanTime = now;
+            // 防抖处理（1秒间隔）
+            if (now - state.lastScan < 1000) return;
+            state.lastScan = now;
 
             // 重复检测
-            const isDuplicate = state.scanHistory.some(item => item.data === data);
-            if (isDuplicate) {
-                showToast('该二维码已扫描过 ⚠️', 1500);
+            if (state.scanHistory.some(item => item.data === data)) {
+                showResultPanel(`⚠️ 已扫描: ${data.substring(0, 20)}...`);
                 return;
             }
 
             // 添加记录
             state.scanHistory.unshift({
                 data: data,
-                time: new Date().toLocaleTimeString(),
-                timestamp: now
+                time: new Date().toLocaleTimeString()
             });
 
-            playBeep();
+            // 反馈
             vibrate();
+            showResultPanel(`✅ 扫描成功: ${data.substring(0, 20)}...`);
             updateResultList();
-            showToast(`已扫描: ${data.substring(0, 20)}${data.length > 20 ? '...' : ''}`);
-        }
-
-        async function initAudio() {
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const duration = 0.2;
-                const sampleRate = audioContext.sampleRate;
-                const frameCount = duration * sampleRate;
-                const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
-                const data = buffer.getChannelData(0);
-                
-                for (let i = 0; i < frameCount; i++) {
-                    data[i] = Math.sin(2 * Math.PI * 1000 * i / sampleRate);
-                }
-                beepBuffer = buffer;
-            } catch (err) {
-                console.error('音频初始化失败:', err);
-            }
-        }
-
-        function playBeep() {
-            if (!beepBuffer) return;
-            
-            const source = audioContext.createBufferSource();
-            source.buffer = beepBuffer;
-            source.connect(audioContext.destination);
-            source.start(0);
-            
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
         }
 
         function vibrate() {
             navigator.vibrate?.(50);
+        }
+
+        function showResultPanel(text) {
+            elements.resultPanel.style.display = 'block';
+            setTimeout(() => elements.resultPanel.style.display = 'none', 2000);
         }
 
         function updateResultList() {
@@ -361,59 +247,29 @@
                     <small>${item.time}</small>
                 </div>
             `).join('');
-            elements.resultCount.textContent = state.scanHistory.length;
         }
 
-        function showToast(text, duration = 2000) {
-            elements.toast.textContent = text;
-            elements.toast.style.opacity = 1;
-            setTimeout(() => elements.toast.style.opacity = 0, duration);
-        }
+        // 事件绑定
+        elements.scanToggle.addEventListener('click', () => {
+            state.isScanning ? stopScanning() : startScanning();
+        });
 
-        function toggleResultPanel() {
-            elements.resultPanel.classList.toggle('active');
-        }
+        document.getElementById('showResults').addEventListener('click', () => {
+            elements.resultPanel.style.display = 'block';
+        });
 
-        async function toggleCamera() {
-            state.currentCamera = state.currentCamera === 'user' ? 'environment' : 'user';
-            await restartCamera();
-        }
+        // 禁止页面滚动
+        document.addEventListener('touchmove', (e) => {
+            if (!elements.resultPanel.contains(e.target)) {
+                e.preventDefault();
+            }
+        }, { passive: false });
 
-        async function toggleFlash() {
-            const track = state.mediaStream?.getVideoTracks()[0];
-            if (!track?.getCapabilities?.().torch) return;
-            
-            state.isFlashOn = !state.isFlashOn;
-            await track.applyConstraints({
-                advanced: [{ torch: state.isFlashOn }]
-            });
-            elements.toggleFlash.textContent = state.isFlashOn ? '🔦' : '⚡';
-        }
-
-        async function restartCamera() {
-            state.mediaStream?.getTracks().forEach(track => track.stop());
-            await initScanner();
-        }
-
-        function exportData() {
-            if (state.scanHistory.length === 0) return showToast('暂无扫描记录');
-            
-            const csvContent = '时间,内容\n' + 
-                state.scanHistory.map(item => `"${item.time}","${item.data}"`).join('\n');
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `二维码扫描_${Date.now()}.csv`;
-            a.click();
-            showToast('导出成功');
-        }
-
+        // 退出清理
         window.addEventListener('beforeunload', () => {
             state.mediaStream?.getTracks().forEach(track => track.stop());
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </body>
 </html>
