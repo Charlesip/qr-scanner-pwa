@@ -1,13 +1,47 @@
 {
-    "name": "批量扫码工具",
-    "short_name": "扫码工具",
+    "name": "全屏扫码工具",
+    "short_name": "智能扫码",
     "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#000000",
+    "theme_color": "#007AFF",
+    "description": "专业二维码扫描工具，支持批量扫描和导出",
     "icons": [
         {
-            "src": "icon.png",
+            "src": "icons/icon-192.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
         }
-    ]
+    ],
+    "screenshots": [
+        {
+            "src": "screenshots/ios-1.png",
+            "sizes": "1170x2532",
+            "type": "image/png",
+            "platform": "narrow",
+            "label": "主扫描界面"
+        }
+    ],
+    "ios": {
+        "precomposed": true,
+        "apple-mobile-web-app-title": "智能扫码",
+        "apple-mobile-web-app-capable": "yes",
+        "apple-mobile-web-app-status-bar-style": "black-translucent"
+    },
+    "related_applications": [],
+    "features": [
+        "QR Code Scanning",
+        "Batch Export",
+        "Camera Access"
+    ],
+    "categories": ["utilities", "productivity"]
 }
