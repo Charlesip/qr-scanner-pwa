@@ -31,7 +31,7 @@
             height: 100vh;
         }
 
-        /* 上半部分：扫描框 */
+        /* 扫描区域 */
         .scanner-section {
             height: 60vh;
             position: relative;
@@ -57,7 +57,7 @@
             object-fit: cover;
         }
 
-        /* 下半部分：操作区 */
+        /* 操作区域 */
         .action-section {
             flex: 1;
             display: flex;
@@ -94,11 +94,50 @@
             transition: bottom 0.3s;
             max-height: 70vh;
             overflow-y: auto;
+            z-index: 100;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #F2F2F7;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--primary);
+            padding: 8px;
         }
 
         .history-item {
             padding: 12px;
             border-bottom: 1px solid #F2F2F7;
+        }
+
+        /* 扫描提示 */
+        .scan-toast {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,122,255,0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .scan-toast.visible {
+            opacity: 1;
         }
     </style>
 </head>
@@ -117,8 +156,15 @@
             <button class="action-button" id="historyBtn">查看扫描历史</button>
         </div>
 
-        <!-- 历史记录 -->
+        <!-- 扫描提示 -->
+        <div class="scan-toast" id="scanToast">✓ 扫描成功</div>
+
+        <!-- 历史记录面板 -->
         <div class="history-panel" id="historyPanel">
+            <div class="history-header">
+                <h3>扫描历史</h3>
+                <button class="close-button" id="closePanel">✕</button>
+            </div>
             <div id="historyList"></div>
         </div>
     </div>
@@ -133,7 +179,8 @@
         const elements = {
             preview: document.getElementById('preview'),
             historyPanel: document.getElementById('historyPanel'),
-            historyList: document.getElementById('historyList')
+            historyList: document.getElementById('historyList'),
+            scanToast: document.getElementById('scanToast')
         };
 
         // 初始化摄像头
@@ -189,7 +236,16 @@
                 time: new Date().toLocaleString()
             });
 
+            showToast();
             updateHistoryList();
+        }
+
+        // 显示提示
+        function showToast() {
+            elements.scanToast.classList.add('visible');
+            setTimeout(() => {
+                elements.scanToast.classList.remove('visible');
+            }, 2000);
         }
 
         // 更新历史记录
@@ -222,9 +278,14 @@
             elements.historyPanel.style.bottom = '0';
         });
 
-        elements.historyPanel.addEventListener('click', (e) => {
-            if (e.target.closest('.history-item')) return;
+        document.getElementById('closePanel').addEventListener('click', () => {
             elements.historyPanel.style.bottom = '-100%';
+        });
+
+        elements.historyPanel.addEventListener('click', (e) => {
+            if (e.target === elements.historyPanel) {
+                elements.historyPanel.style.bottom = '-100%';
+            }
         });
 
         // 启动扫描
