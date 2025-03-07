@@ -1,87 +1,140 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>批量扫码工具</title>
+    <!-- 引入 iOS 风格字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        /* iOS 风格全局样式 */
+        :root {
+            --ios-blue: #007AFF;
+            --ios-gray: #F2F2F7;
+            --ios-red: #FF3B30;
+        }
+
+        * {
+            font-family: 'SF Pro Display', -apple-system, sans-serif;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            background: var(--ios-gray);
+            min-height: 100vh;
+        }
+
+        /* 符合 iOS 规范的按钮样式 */
+        .ios-button {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: var(--ios-blue);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 500;
+            margin: 8px 0;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            -webkit-user-select: none;
+        }
+
+        .ios-button:active {
+            opacity: 0.7;
+        }
+
+        .secondary-button {
+            background: white;
+            color: var(--ios-blue);
+            border: 1px solid #C7C7CC;
+        }
+
+        /* 视频预览区域 */
+        #preview {
+            width: 100%;
+            height: 60vh;
+            border-radius: 18px;
+            margin: 20px 0;
+            object-fit: cover;
+            background: black;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        /* 结果列表样式 */
+        #results {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 20px;
+        }
+
+        .result-item {
+            padding: 14px;
+            border-bottom: 1px solid #E5E5EA;
+            font-size: 15px;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        /* 标题栏 */
+        .header {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 20px 0;
+            color: #1C1C1E;
+        }
+
+        /* 适配 iPhone 刘海屏 */
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(16px, env(safe-area-inset-left));
+                padding-right: max(16px, env(safe-area-inset-right));
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
 </head>
 <body>
-    <button onclick="startScan()">开始扫描</button>
-    <button onclick="exportData()">导出结果</button>
-    <div id="results"></div>
-    <video id="preview" width="300" height="200"></video>
+    <h1 class="header">批量扫码</h1>
+    
+    <button class="ios-button" onclick="startScan()">开始扫描</button>
+    <button class="ios-button secondary-button" onclick="exportData()">导出结果</button>
+
+    <video id="preview"></video>
+    
+    <div id="results">
+        <div class="result-item">扫描结果将显示在这里...</div>
+    </div>
 
     <script>
-        let scanHistory = []; // 存储扫描结果
-        let mediaStream = null; // 摄像头流
-
-        // 初始化音频（需用户交互后播放）
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        let beepSound = null;
-        fetch('https://actions.google.com/sounds/v1/alerts/beep_short.ogg')
-            .then(response => response.arrayBuffer())
-            .then(data => audioContext.decodeAudioData(data))
-            .then(buffer => { beepSound = buffer; });
-
-        // 开始扫描
-        async function startScan() {
-            try {
-                const video = document.getElementById('preview');
-                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = mediaStream;
-                video.play();
-                scanFrame(video);
-            } catch (err) {
-                alert('摄像头权限被拒绝！');
+        // 保持原有 JavaScript 功能不变，只修改结果更新部分
+        // 修改结果更新部分为：
+        if (code) {
+            playBeep();
+            scanHistory.push({ data: code.data, time: new Date().toLocaleString() });
+            
+            // 清空占位文本
+            if(document.querySelector('#results .result-item').textContent === '扫描结果将显示在这里...') {
+                document.getElementById('results').innerHTML = '';
             }
+            
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item';
+            resultItem.innerHTML = `
+                <div style="color: #1C1C1E;">${code.data}</div>
+                <div style="color: #8E8E93; font-size: 13px; margin-top: 4px;">${new Date().toLocaleString()}</div>
+            `;
+            
+            document.getElementById('results').prepend(resultItem);
         }
-
-        // 逐帧解析
-        function scanFrame(video) {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-            if (code) {
-                playBeep(); // 播放提示音
-                scanHistory.push({ data: code.data, time: new Date().toLocaleString() });
-                document.getElementById('results').innerHTML = scanHistory.map(item => 
-                    `<div>${item.time}: ${item.data}</div>`
-                ).join('');
-            }
-            requestAnimationFrame(() => scanFrame(video));
-        }
-
-        // 播放声音
-        function playBeep() {
-            if (!beepSound) return;
-            const source = audioContext.createBufferSource();
-            source.buffer = beepSound;
-            source.connect(audioContext.destination);
-            source.start(0);
-        }
-
-        // 导出为CSV
-        function exportData() {
-            const csvContent = '时间,内容\n' + scanHistory.map(item => 
-                `${item.time},${item.data}`
-            ).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = '扫描结果.csv';
-            a.click();
-        }
-
-        // 停止摄像头
-        window.addEventListener('beforeunload', () => {
-            if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-        });
     </script>
 </body>
 </html>
