@@ -2,32 +2,43 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>批量扫码工具</title>
     <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         :root {
             --ios-blue: #007AFF;
             --ios-gray: #F2F2F7;
+            --ios-green: #34C759;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'SF Pro Display', -apple-system, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            margin: 0;
-            padding: 16px;
             background: var(--ios-gray);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
+            padding: 20px;
         }
 
+        /* 摄像头容器 */
         #preview-container {
             width: 512px;
             height: 512px;
-            margin: 20px 0;
             border-radius: 24px;
             overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            background: #000;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            margin: 20px 0;
             position: relative;
         }
 
@@ -35,67 +46,139 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transform: scale(1.02);
         }
 
+        /* 扫描框动画 */
+        .scan-overlay {
+            position: absolute;
+            width: 70%;
+            height: 70%;
+            top: 15%;
+            left: 15%;
+            border: 3px solid rgba(255,255,255,0.8);
+            border-radius: 20px;
+            animation: scan 2s infinite;
+        }
+
+        @keyframes scan {
+            0% { border-color: rgba(255,255,255,0.8); }
+            50% { border-color: var(--ios-blue); }
+            100% { border-color: rgba(255,255,255,0.8); }
+        }
+
+        /* 按钮容器 */
         .button-container {
             width: 100%;
             max-width: 512px;
-            margin-top: 20px;
+            margin-top: auto;
         }
 
         .ios-button {
             width: 100%;
             padding: 18px;
-            background: var(--ios-blue);
-            color: white;
             border: none;
             border-radius: 14px;
             font-size: 18px;
+            font-weight: 500;
             margin: 8px 0;
+            transition: transform 0.1s;
+            cursor: pointer;
         }
 
-        /* 其他样式保持原有优化 */
+        #scanBtn {
+            background: var(--ios-blue);
+            color: white;
+        }
+
+        #exportBtn {
+            background: var(--ios-green);
+            color: white;
+        }
+
+        /* 结果列表 */
+        #results {
+            width: 100%;
+            max-width: 512px;
+            background: white;
+            border-radius: 16px;
+            margin: 20px 0;
+            padding: 16px;
+        }
+
+        .result-item {
+            padding: 14px;
+            border-bottom: 1px solid #EEE;
+            font-size: 15px;
+        }
+
+        /* 适配刘海屏 */
+        @supports (padding: max(0px)) {
+            body {
+                padding: max(20px, env(safe-area-inset-top)) 
+                         max(20px, env(safe-area-inset-right)) 
+                         max(20px, env(safe-area-inset-bottom)) 
+                         max(20px, env(safe-area-inset-left));
+            }
+        }
     </style>
 </head>
 <body>
     <div id="preview-container">
-        <video id="preview"></video>
+        <video id="preview" playsinline muted></video>
+        <div class="scan-overlay"></div>
+    </div>
+
+    <div id="results">
+        <div class="result-item">扫描结果将在此显示...</div>
     </div>
 
     <div class="button-container">
         <button class="ios-button" id="scanBtn">开始扫描</button>
-        <button class="ios-button" id="exportBtn" style="background: #34C759;">导出结果</button>
+        <button class="ios-button" id="exportBtn">导出结果</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script>
+        // 状态管理
         let mediaStream = null;
         let isScanning = false;
         let audioContext = null;
+        let scanHistory = [];
 
-        // 修复 1：直接绑定事件
-        document.getElementById('scanBtn').addEventListener('click', toggleScan);
-        document.getElementById('exportBtn').addEventListener('click', exportData);
+        // 元素绑定
+        const videoElement = document.getElementById('preview');
+        const scanBtn = document.getElementById('scanBtn');
+        const exportBtn = document.getElementById('exportBtn');
 
+        // 事件监听
+        scanBtn.addEventListener('click', toggleScan);
+        exportBtn.addEventListener('click', exportData);
+
+        // 核心功能
         async function toggleScan() {
             if (!isScanning) {
                 await startScan();
-                this.textContent = '停止扫描';
+                scanBtn.textContent = '停止扫描';
             } else {
                 stopScan();
-                this.textContent = '开始扫描';
+                scanBtn.textContent = '开始扫描';
             }
             isScanning = !isScanning;
         }
 
         async function startScan() {
             try {
-                // 修复 3：延迟音频初始化
+                // 初始化音频上下文
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
 
-                const video = document.getElementById('preview');
+                // 停止之前的摄像头流
+                if (videoElement.srcObject) {
+                    stopScan();
+                }
+
+                // 获取摄像头
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
@@ -103,37 +186,58 @@
                         height: { exact: 512 }
                     }
                 });
-                
-                // 修复 2：强制视频尺寸
-                video.width = 512;
-                video.height = 512;
-                video.srcObject = mediaStream;
-                await video.play();
-                scanFrame(video);
+
+                videoElement.srcObject = mediaStream;
+                await videoElement.play();
+                scanFrame();
             } catch (err) {
-                alert('摄像头错误: ' + err.message);
+                alert('摄像头访问失败: ' + err.message);
             }
         }
 
-        function scanFrame(video) {
+        function scanFrame() {
+            if (!isScanning) return;
+
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 512;
-            const context = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d');
             
-            context.drawImage(video, 0, 0);
-            const imageData = context.getImageData(0, 0, 512, 512);
+            ctx.drawImage(videoElement, 0, 0, 512, 512);
+            const imageData = ctx.getImageData(0, 0, 512, 512);
             const code = jsQR(imageData.data, 512, 512);
 
             if (code) {
                 playBeep();
-                console.log('扫描到:', code.data); // 实际应更新结果列表
+                addResult(code.data);
             }
-            requestAnimationFrame(() => scanFrame(video));
+            requestAnimationFrame(scanFrame);
+        }
+
+        function addResult(data) {
+            scanHistory.push({
+                data: data,
+                time: new Date().toLocaleString()
+            });
+
+            const resultList = document.getElementById('results');
+            if (resultList.children[0].textContent === '扫描结果将在此显示...') {
+                resultList.innerHTML = '';
+            }
+
+            const item = document.createElement('div');
+            item.className = 'result-item';
+            item.innerHTML = `
+                <div style="color: #1C1C1E;">${data}</div>
+                <div style="color: #8E8E93; font-size: 13px; margin-top: 4px;">${new Date().toLocaleString()}</div>
+            `;
+            
+            resultList.prepend(item);
         }
 
         function playBeep() {
             if (!audioContext) return;
+            
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             
@@ -148,8 +252,34 @@
         }
 
         function stopScan() {
-            mediaStream?.getTracks().forEach(track => track.stop());
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
         }
+
+        function exportData() {
+            if (scanHistory.length === 0) {
+                alert('没有可导出的数据');
+                return;
+            }
+
+            const csvContent = '时间,内容\n' + 
+                scanHistory.map(item => `"${item.time}","${item.data}"`).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `二维码扫描_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // 页面关闭时清理资源
+        window.addEventListener('beforeunload', stopScan);
     </script>
 </body>
 </html>
